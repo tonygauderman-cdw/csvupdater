@@ -2,3 +2,6 @@
 /ccclusterexports/
 /venv/
 /valuemapping.yaml
+/logs/
+/yamlarchives/
+/out.yaml
