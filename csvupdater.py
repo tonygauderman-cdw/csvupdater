@@ -7,9 +7,10 @@ logger = ''
 delimiter = 'comma'
 getvalues = False
 prefixcol = ''
+replacefromcsv = ''
 
 def main(argv):
-    global inputfile, outputfile, logger, delimiter, getvalues, prefixcol
+    global inputfile, outputfile, logger, delimiter, getvalues, prefixcol, replacefromcsv
     logger = logging.getLogger()
     logging.captureWarnings(True)
     if not os.path.isdir("logs"):
@@ -22,8 +23,8 @@ def main(argv):
     sys.stdout.write("log level set to ERROR\n")
 
     try:
-        opts, args = getopt.getopt(argv, "hi:o:d:l:g:p", ["help", "inputfile=", "outputfile=", "delimiter=", "loglevel=",
-            "getvalues", "prefixcol="])
+        opts, args = getopt.getopt(argv, "hi:o:d:l:g:p:r", ["help", "inputfile=", "outputfile=", "delimiter=", "loglevel=",
+            "getvalues", "prefixcol=", "replacefromcsv="])
 
     except:
         logger.critical('FATAL ERROR Invalid Options')
@@ -46,6 +47,8 @@ def main(argv):
                 getvalues = True
             elif opt in ("p", "--prefixcol"):
                 prefixcol = arg
+            elif opt in ("r", "--replacefromcsv"):
+                replacefromcsv = arg
             elif opt in ("l", "--loglevel"):
                 loglevel = arg.upper()
                 logger.critical('log level requested is ' + loglevel)
@@ -76,9 +79,9 @@ def main(argv):
 
 
 def readfile():
-    global inputfile, outputfile, logger, getvalues, prefixcol
+    global inputfile, outputfile, logger, getvalues, prefixcol, replacefromcsv
     originalfile = open(inputfile, 'r', newline='', encoding="ISO-8859-1")
-    logger.critical("Reading Original File")
+    logger.critical("Reading Original File " + inputfile)
 
     reader = csv.DictReader(originalfile)
     #Dictionary Created from headers of CSV
@@ -87,19 +90,18 @@ def readfile():
     valuedictionary = {"Value Mappings": {}}
     rowcount = 0
 
+
+    #handle fields with numbers at the end as one value in the value mappings file
+    logger.info("Reading Input File")
     for fieldname in reader.fieldnames:
-        logger.debug("fieldname " + str(fieldname))
-
-        #commented out for numeric grouping
-        #headerdictionary[fieldname] = False
-
-        #new block for numeric grouping
         if fieldname[-3:].strip().isnumeric():
-            #sys.stdout.write("field name " + fieldname + " " + fieldname[-3:].strip() + '\n')
+            logger.info("Field " + fieldname + " ends in a number.")
             headerdictionary[fieldname[:-3].strip()] = ({"Process": False, "Numeric": True})
+            logger.info("Field " + fieldname + " is evaluated as " + fieldname[:-3].strip())
         elif fieldname[-2:].strip().isnumeric():
-            #sys.stdout.write("field name " + fieldname + " " + fieldname[-2:].strip() + '\n')
+            logger.info("Field " + fieldname + " ends in a number.")
             headerdictionary[fieldname[:-2].strip()] = ({"Process": False, "Numeric": True})
+            logger.info("Field " + fieldname + " is evaluated as " + fieldname[:-2].strip())
         else:
             headerdictionary[fieldname] = ({"Process": False, "Numeric": False})
 
@@ -107,7 +109,6 @@ def readfile():
 
     if (getvalues == False):
         logger.info("Converting Data In File")
-        sys.stdout.write("Converting Data In File\n")
         newfile = open(outputfile, 'w', newline='')
         outwriter = csv.DictWriter(newfile, fieldnames=reader.fieldnames)
         outwriter.writeheader()
@@ -122,13 +123,9 @@ def readfile():
         logger.critical("valuemapping.yaml not found.  Please Create yaml file per README.md and re-run")
         sys.exit()
 
-    #added to try and write out a whole new file...
-    #sys.stdout.write(str(valuedictionary) + '\n')
     valuedictionary = mappings
-    #sys.stdout.write(str(valuedictionary) + '\n')
 
     logger.warning ("Mappings " + str(mappings))
-    #sys.stdout.write ("Mappings " + str(mappings) + '\n')
 
     for key in mappings["Value Mappings"]:
         logger.debug("Value Mappings " + str(key))
@@ -136,161 +133,142 @@ def readfile():
             headerdictionary[key]['Process'] = True
 
     logger.debug("Header Dictionary before modifying data" + str(headerdictionary))
-    #sys.stdout.write("Header Dictionary before modifying data " + str(headerdictionary) + '\n')
 
     filehasvalues = False
     for phone in reader:
         logger.debug("phone " + str(phone))
         for header, value in phone.items():
-            #added for numeric processing
-            #sys.stdout.write("header " + str(header) + '\n')
             if header[-3:].strip().isnumeric():
-                #sys.stdout.write(str(headerdictionary[header[:-3].strip()]) + '\n')
                 headerindict = header[:-3].strip()
+                headerint = header[-3:].strip()
             elif header[-2:].strip().isnumeric():
-                #sys.stdout.write(str(headerdictionary[header[:-2].strip()]) + '\n')
                 headerindict = header[:-2].strip()
+                headerint = header[-2:].strip()
             else:
                 headerindict = header
-            #sys.stdout.write(str(headerdictionary[header[:-3].strip()]) + '\n')
-            #sys.stdout.write("headerindict " + str(headerindict) + '\n')
-            #if headerdictionary[header] == None:
+                headerint = 0
+
             if header == '':
-                sys.stdout.write("Cell Data with no Column Header \n")
+                sys.stdout.write("Cell Data " + str(phone[header]) + " with no Column Header \n")
                 sys.exit()
 
-            if headerdictionary[headerindict]['Process'] == True:
-                if (getvalues == True):
-                    colheaderdict = mappings["Value Mappings"][headerindict]
-                    foundinyamlfile = False
-                    if not colheaderdict:
-                        logger.info(header + "list is empty")
-                    else:
-                        for valuepair in colheaderdict:
-                            if (phone[header] == valuepair["Old"]):
-                                foundinyamlfile = True
-                            else:
-                                logger.debug("phone header not in yaml file " + phone[header])
-
-                    if (foundinyamlfile == False and phone[header] != ''):
-
-                        #if header in valuedictionary["Value Mappings"]:
-                        if headerindict in valuedictionary["Value Mappings"]:
-                            valueexists = False
-                            valueisnone = False
-                            #sys.stdout.write("headerindict " + headerindict + '\n')
-                            #sys.stdout.write(str(valuedictionary["Value Mappings"][headerindict]) + '\n')
-                            if ((valuedictionary["Value Mappings"][headerindict] is None) or
-                                (valuedictionary["Value Mappings"][headerindict] == "null")):
-                                valueisnone = True
-                                logger.info("Value Is None")
-                                logger.info("phoneheader " + phone[header] + " headerindict " + headerindict)
-                                if prefixcol != '':
-                                    valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]),
-                                        "New": phone["Device Type"] + " New Value"},)
-                                else:
-                                    valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]),
-                                        "New": "New Value"},)
-                                #sys.stdout.write(str(valuedictionary))
-                                filehasvalues = True
-                            else:
-                                #sys.stdout.write (str(valuedictionary["Value Mappings"][headerindict]) + '\n')
-                                #sys.stdout.write(str([{"Old": str(phone[header]), "New": "NewValue"}]) + '\n')
-                                try:
-                                    if prefixcol != '':
-                                        valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
-                                            [{"Old": str(phone[header]), "New": phone["Device Type"] + " New Value"}]
-                                    else:
-                                        valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
-                                            [{"Old": str(phone[header]), "New": "New Value"}]
-
-                                except:
-                                    if prefixcol != '':
-                                        valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
-                                            ({"Old": str(phone[header]), "New": phone["Device Type"] + " New Value"},)
-                                    else:
-                                        valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
-                                            ({"Old": str(phone[header]), "New": "New Value"},)
-
-                                filehasvalues = True
-                            logger.info("valuedictionary " + str(valuedictionary))
-
-
-                                #for agevaluepair in valuedictionary["Value Mappings"][headerindict]:
-                                    #sys.stdout.write("phone header " + str(phone[header]) + " filevalue " + str(agevaluepair["Old"]) + '\n')
-                                #    if phone[header] == agevaluepair["Old"]:
-                                #        sys.stdout.write("match\n")
-                                #        valueexists = True
-                                #filehasvalues = True
-
-
-
-
-                            #if valueexists == False and valueisnone == True:
-                            #    valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]), "New": "NewValue"},)
-                            #elif valueexists == False:
-                            #    valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + ({"Old": str(phone[header]), "New": "NewValue"},)
+            if (headerdictionary[headerindict]['Process'] == True) and (getvalues == True):
+                #if (getvalues == True):
+                colheaderdict = mappings["Value Mappings"][headerindict]
+                foundinyamlfile = False
+                if not colheaderdict:
+                    logger.info(header + "list is empty")
+                else:
+                    for valuepair in colheaderdict:
+                        if (phone[header] == valuepair["Old"]):
+                            foundinyamlfile = True
                         else:
-                            #valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]), "New": "NewValue"},)
+                            logger.debug("phone header not in yaml file " + str(phone[header]))
+
+                if (foundinyamlfile == False and phone[header] != '' and phone[header] != None):
+                    if headerindict in valuedictionary["Value Mappings"]:
+                        valueexists = False
+                        valueisnone = False
+                        if ((valuedictionary["Value Mappings"][headerindict] is None) or
+                            (valuedictionary["Value Mappings"][headerindict] == "null")):
+
+                            valueisnone = True
+                            logger.info("Value Is None")
+                            logger.info("phoneheader " + str(phone[header]) + " headerindict " + headerindict)
+
+                            if prefixcol != '':
+                                valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]),
+                                    "New": phone[prefixcol] + " New Value"},)
+                            else:
+                                valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]),
+                                    "New": "New Value"},)
                             filehasvalues = True
 
-                else:
-                    #start with headerindict logic
+                        else:
+                            try:
+                                if prefixcol != '':
+                                    valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
+                                        [{"Old": str(phone[header]), "New": phone[prefixcol] + " New Value"}]
+                                else:
+                                    valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
+                                        [{"Old": str(phone[header]), "New": "New Value"}]
+
+                            except:
+                                if prefixcol != '':
+                                    valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
+                                        ({"Old": str(phone[header]), "New": phone["Device Type"] + " New Value"},)
+                                else:
+                                    valuedictionary["Value Mappings"][headerindict] = valuedictionary["Value Mappings"][headerindict] + \
+                                        ({"Old": str(phone[header]), "New": "New Value"},)
+
+                            filehasvalues = True
+                        logger.info("valuedictionary " + str(valuedictionary))
+                    else:
+                        filehasvalues = True
+
+            elif getvalues == False:
+
+                if (headerdictionary[headerindict]['Process'] == True):
+
                     colheaderdict = mappings["Value Mappings"][headerindict]
+
                     if not colheaderdict:
                         logger.info(headerindict + " list is empty")
                     else:
                         foundinheaderdict = False
                         for valuepair in colheaderdict:
-                            #add logic to check for actual header value and handle numeric..
-                            #
 
-                            sys.stdout.write("headerindict " + headerindict + '\n')
-                            sys.stdout.write("colheaderdict " + str(colheaderdict) + '\n')
-                            sys.stdout.write("valuepair " + str(valuepair) + '\n')
-                            sys.stdout.write("phoneheaderindict " + phone[header] + " valuepair old " + valuepair["Old"] + '\n')
+                            if phone[header] == valuepair["Old"]:
+                                foundinheaderdict = True
+                                phone[header] = valuepair["New"]
 
-                            if header[-3:].strip().isnumeric():
-                                headertolookfor = header[:-3].strip()
-                            elif header[-2:].strip().isnumeric():
-                                headertolookfor = header[:-2].strip()
-                            else:
-                                headertolookfor = header
-                            if (headertolookfor == headerindict):
-                                sys.stdout.write("header to look for " + headertolookfor + '\n')
-                                sys.stdout.write("Old value pair " + valuepair["Old"] + '\n')
-                                if phone[header] == valuepair["Old"]:
-                                    foundinheaderdict = True
-                                    logger.info(str(phone[header]) + ' found in valuemapping.yaml')
-                                    sys.stdout.write(str(phone[header]) + ' found in valuemapping.yaml\n')
-                                    phone[header] = valuepair["New"]
+                        if ((foundinheaderdict == False) and (phone[header] != '') and phone[header] != None):
+                            logger.critical(str(phone[header]) + ' not found in valuemapping.yaml')
+                            sys.stdout.write("Field " + header + " value " + str(phone[header]) + ' not found in valuemapping.yaml\n')
+                            #sys.exit()
 
-                            #try:
-                            #    if ((phone[headerindict] == valuepair["Old"]) and (phone[headerindict] != '')):
-                            #        logger.info("Old Value " + valuepair["Old"])
-                            #        foundinheaderdict = True
-                            #        logger.info(str(foundinheaderdict) + ' found in valuemapping.yaml')
-                            #except:
-                            #    logger.critical("Header " + str(header) + " and value " + phone[header] +
-                            #        ' not formatted in valuemapping.yaml file properly')
-                            #    sys.stdout.write("Header " + str(header) + " and value " + phone[header] +
-                            #        ' not formatted in valuemapping.yaml file properly')
-                            #    sys.exit()
-                            #else:
-                            #    if ((phone[headerindict] == valuepair["Old"]) and (phone[headerindict] != '')):
-                            #        try:
-                            #            logger.info("New Value " + valuepair["New"])
-                            #            phone[headerindict] = valuepair["New"]
-                            #        except:
-                            #            logger.critical("No New Value for " + str(headerindict) + ' Value ' + valuepair["Old"])
-                            #            sys.stdout.write("No New Value for " + str(headerindict) + ' Value ' + valuepair["Old"] + '\n')
-                            #            sys.exit()
-                        if ((foundinheaderdict == False) and (phone[header] != '')):
-                            logger.critical(phone[header] + ' not found in valuemapping.yaml')
-                            sys.stdout.write(phone[header] + ' not found in valuemapping.yaml\n')
-                            sys.exit()
+                if headerindict in mappings["Calculated Columns"]:
+                    for colheader in mappings["Calculated Columns"][headerindict]:
 
-        #sys.stdout.write("phone line " + str(phone) + '\n')
+                        if headerint > 0:
+                            colheader1 = colheader["Column 1"] + " " + str(headerint)
+                            colheader2 = colheader["Column 2"] + " " + str(headerint)
+                        else:
+                            colheader1 = colheader["Column 1"]
+                            colheader2 = colheader["Column 2"]
+
+
+                        if phone[colheader1][:1] == "\\":
+                            columnvalue1 = phone[colheader1][1:]
+                        else:
+                            columnvalue1 = phone[colheader1]
+                        if phone[colheader2][:1] == "\\":
+                            columnvalue2 = phone[colheader2][1:]
+                        else:
+                            columnvalue2 = phone[colheader2]
+
+                        phone[header] = columnvalue1 + " " + columnvalue2
+
+                if headerindict in mappings["Replace From CSV"] and phone[header] != '':
+                    for colheader in mappings["Replace From CSV"][header]:
+                        originalcolumn = str(colheader["Original"])
+                        replacementcolumn = str(colheader["Replacement"])
+                        foundreplacement = False
+
+                        csvreplacementfile = open(replacefromcsv, 'r', newline='', encoding="ISO-8859-1")
+                        csvreplacement = csv.DictReader(csvreplacementfile)
+
+                        for row in csvreplacement:
+                            if phone[header] == row[originalcolumn]:
+                                phone[header] = row[replacementcolumn]
+                                foundreplacement = True
+                        if foundreplacement == False:
+                            sys.stdout.write("No value found in csv mapping file for column '" + originalcolumn + "' and value " +
+                                phone[header] + '\n')
+
+                if headerindict in mappings["Set To Single Value"]:
+                    phone[header] = mappings["Set To Single Value"][headerindict]
+
         if (getvalues == False):
             outwriter.writerow(phone)
         else:

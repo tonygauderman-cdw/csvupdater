@@ -1,7 +1,8 @@
 /adminclusterexports/
 /ccclusterexports/
 /venv/
-/valuemapping.yaml
 /logs/
 /yamlarchives/
+/sourcefiles/
+/valuemapping.yaml
 /out.yaml
