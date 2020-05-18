@@ -92,28 +92,28 @@ def readfile():
 
 
     #handle fields with numbers at the end as one value in the value mappings file
-    logger.info("Reading Input File")
+    logger.critical("Reading Input File")
     for fieldname in reader.fieldnames:
         if fieldname[-3:].strip().isnumeric():
-            logger.info("Field " + fieldname + " ends in a number.")
+            logger.debug("Field " + fieldname + " ends in a number.")
             headerdictionary[fieldname[:-3].strip()] = ({"Process": False, "Numeric": True})
-            logger.info("Field " + fieldname + " is evaluated as " + fieldname[:-3].strip())
+            logger.debug("Field " + fieldname + " is evaluated as " + fieldname[:-3].strip())
         elif fieldname[-2:].strip().isnumeric():
-            logger.info("Field " + fieldname + " ends in a number.")
+            logger.debug("Field " + fieldname + " ends in a number.")
             headerdictionary[fieldname[:-2].strip()] = ({"Process": False, "Numeric": True})
-            logger.info("Field " + fieldname + " is evaluated as " + fieldname[:-2].strip())
+            logger.debug("Field " + fieldname + " is evaluated as " + fieldname[:-2].strip())
         else:
             headerdictionary[fieldname] = ({"Process": False, "Numeric": False})
 
-    logger.critical("Header Dictionary at assignment " + str(headerdictionary))
+    logger.debug("Header Dictionary at assignment " + str(headerdictionary))
 
     if (getvalues == False):
-        logger.info("Converting Data In File")
+        logger.critical("Converting Data In File")
         newfile = open(outputfile, 'w', newline='')
         outwriter = csv.DictWriter(newfile, fieldnames=reader.fieldnames)
         outwriter.writeheader()
     else:
-        logger.info("Grabbing Values from File based on valuemappings.yaml")
+        logger.critical("Grabbing Values from File based on valuemappings.yaml")
         sys.stdout.write("Grabbing Values from File based on valuemappings.yaml\n")
     try:
         with open('valuemapping.yaml') as f:
@@ -125,7 +125,7 @@ def readfile():
 
     valuedictionary = mappings
 
-    logger.warning ("Mappings " + str(mappings))
+    logger.debug ("Mappings " + str(mappings))
 
     for key in mappings["Value Mappings"]:
         logger.debug("Value Mappings " + str(key))
@@ -157,7 +157,7 @@ def readfile():
                 colheaderdict = mappings["Value Mappings"][headerindict]
                 foundinyamlfile = False
                 if not colheaderdict:
-                    logger.info(header + "list is empty")
+                    logger.debug(header + " list is empty")
                 else:
                     for valuepair in colheaderdict:
                         if (phone[header] == valuepair["Old"]):
@@ -173,8 +173,8 @@ def readfile():
                             (valuedictionary["Value Mappings"][headerindict] == "null")):
 
                             valueisnone = True
-                            logger.info("Value Is None")
-                            logger.info("phoneheader " + str(phone[header]) + " headerindict " + headerindict)
+                            logger.debug("Value Is None")
+                            logger.debug("phoneheader " + str(phone[header]) + " headerindict " + headerindict)
 
                             if prefixcol != '':
                                 valuedictionary["Value Mappings"][headerindict] = ({"Old": str(phone[header]),
@@ -202,7 +202,11 @@ def readfile():
                                         ({"Old": str(phone[header]), "New": "New Value"},)
 
                             filehasvalues = True
-                        logger.info("valuedictionary " + str(valuedictionary))
+
+                        logger.info("Adding Value " + headerindict + " "  + str(phone[header]))
+                        sys.stdout.write("Adding Value " + headerindict + " " + str(phone[header] + '\n'))
+
+                        logger.debug("valuedictionary " + str(valuedictionary))
                     else:
                         filehasvalues = True
 
@@ -213,7 +217,7 @@ def readfile():
                     colheaderdict = mappings["Value Mappings"][headerindict]
 
                     if not colheaderdict:
-                        logger.info(headerindict + " list is empty")
+                        logger.debug(headerindict + " list is empty")
                     else:
                         foundinheaderdict = False
                         for valuepair in colheaderdict:
